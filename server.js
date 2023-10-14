@@ -1,49 +1,23 @@
-// Listen on a specific host via the HOST environment variable
-var host = process.env.HOST || '0.0.0.0';
-// Listen on a specific port via the PORT environment variable
-var port = process.env.PORT || 8080;
+var fs = require('fs');
+var cors_proxy = require('cors-anywhere');
 
-// Grab the blacklist from the command-line so that we can update the blacklist without deploying
-// again. CORS Anywhere is open by design, and this blacklist is not used, except for countering
-// immediate abuse (e.g. denial of service). If you want to block all origins except for some,
-// use originWhitelist instead.
-var originBlacklist = parseEnvList(process.env.CORSANYWHERE_BLACKLIST);
-var originWhitelist = parseEnvList(process.env.CORSANYWHERE_WHITELIST);
-function parseEnvList(env) {
-  if (!env) {
-    return [];
-  }
-  return env.split(',');
-}
-
-// Set up rate-limiting to avoid abuse of the public CORS Anywhere server.
-var checkRateLimit = require('./lib/rate-limit')(process.env.CORSANYWHERE_RATELIMIT);
-
-var cors_proxy = require('./lib/cors-anywhere');
+// Для HTTP
+var httpPort = 8080;
 cors_proxy.createServer({
-  originBlacklist: originBlacklist,
-  originWhitelist: originWhitelist,
-  requireHeader: ['origin', 'x-requested-with'],
-  checkRateLimit: checkRateLimit,
-  removeHeaders: [
-    'cookie',
-    'cookie2',
-    // Strip Heroku-specific headers
-    'x-request-start',
-    'x-request-id',
-    'via',
-    'connect-time',
-    'total-route-time',
-    // Other Heroku added debug headers
-    // 'x-forwarded-for',
-    // 'x-forwarded-proto',
-    // 'x-forwarded-port',
-  ],
-  redirectSameOrigin: true,
-  httpProxyOptions: {
-    // Do not add X-Forwarded-For, etc. headers, because Heroku already adds it.
-    xfwd: false,
-  },
-}).listen(port, host, function() {
-  console.log('Running CORS Anywhere on ' + host + ':' + port);
+originWhitelist: [], // Разрешить только один источник
+}).listen(httpPort, function() {
+console.log('Запущен CORS Anywhere (HTTP) на порту ' + httpPort);
+});
+
+// Для HTTPS
+var httpsPort = 8443;
+var httpsOptions = {
+key: fs.readFileSync('/etc/letsencrypt/live/avt59.ru/privkey.pem'), // Путь к вашему приватному ключу
+cert: fs.readFileSync('/etc/letsencrypt/live/avt59.ru/fullchain.pem') // Путь к вашему сертификату
+};
+cors_proxy.createServer({
+originWhitelist: [], // Разрешить только один источник
+httpsOptions: httpsOptions, // Использовать опции HTTPS
+}).listen(httpsPort, function() {
+console.log('Запущен CORS Anywhere (HTTPS) на порту ' + httpsPort);
 });
